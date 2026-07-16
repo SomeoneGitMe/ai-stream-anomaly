@@ -34,13 +34,3 @@ bash
 uvicorn app:app --reload
 5. View the Dashboard
 Navigate to http://127.0.0.1:8000 in your browser. Watch the price ticker update. Within 30-60 seconds, you will see a red anomaly alert flash on the screen with the AI's real-time analysis.
-
-text
-
-
-### Final Steps:
-1. Save the README in VSCode.
-2. Push it to GitHub (`git add .`, `git commit -m "Docs: Add README"`, `git push`).
-3. Fix the Elixir issue on Render and click Deploy.
-
-Once that Render link goes live, you are officially 3-for-3. Go close this out so you can sleep!
