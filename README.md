@@ -15,22 +15,24 @@ Architecture: WebSockets, Real-Time Data Streaming, Event-Driven AI
 
 🚀 Getting Started
 1. Clone the repository
+  
 git clone https://github.com/SomeoneGitMe/ai-stream-anomaly.gitcd ai-stream-anomaly
+
 2. Install dependencies
-bash
 
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
+
 3. Set up environment variables
 Create a .env file in the root directory and add your Groq API key:
 
-text
-
 GROQ_API_KEY=your_groq_api_key_here
+
 4. Run the server
-bash
 
 uvicorn app:app --reload
+
 5. View the Dashboard
+
 Navigate to http://127.0.0.1:8000 in your browser. Watch the price ticker update. Within 30-60 seconds, you will see a red anomaly alert flash on the screen with the AI's real-time analysis.
