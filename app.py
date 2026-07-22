@@ -16,11 +16,10 @@ client = OpenAI(
 
 app = FastAPI(title="AI Streaming Anomaly Detector")
 
-# --- AI Anomaly Analyzer ---
 def get_ai_analysis(price: float, change: float):
     try:
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "You are a high-frequency trading AI. A stock just spiked abnormally. In exactly ONE short sentence, speculate a realistic market reason for the spike (e.g., earnings, FDA approval, tweet). Do not use hashtags."},
                 {"role": "user", "content": f"Stock price just moved {change}% to ${price}. Why?"}
@@ -30,7 +29,6 @@ def get_ai_analysis(price: float, change: float):
     except Exception as e:
         return "AI analysis unavailable at the moment."
 
-# --- WebSocket Manager ---
 class ConnectionManager:
     def __init__(self):
         self.active_connections: list[WebSocket] = []
@@ -47,26 +45,33 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# --- Simulated Data Stream & Anomaly Detection ---
 async def market_data_generator():
     base_price = 150.00
+    tick_count = 0
+    
     while True:
-        # 95% chance of normal movement, 5% chance of anomaly
-        is_anomaly = random.random() < 0.05
+        tick_count += 1
         
+        # Force an anomaly on tick 5 (5 seconds after a user connects) so they see it instantly
+        if tick_count in [5, 6, 7]:
+            is_anomaly = True
+        else:
+            # Otherwise, 15% chance of anomaly (keeps the feed active)
+            is_anomaly = random.random() < 0.15
+            
         if is_anomaly:
             change = random.uniform(3.0, 8.0) # 3% to 8% spike
             price = base_price * (1 + (change / 100))
             event_type = "ANOMALY DETECTED"
-            # Call AI for explanation
             reason = get_ai_analysis(price, change)
         else:
-            change = random.uniform(-0.5, 0.5) # normal noise
+            # Normal small ticks every second
+            change = random.uniform(-0.4, 0.4) 
             price = base_price * (1 + (change / 100))
             event_type = "NORMAL"
             reason = ""
 
-        base_price = price # update price for next tick
+        base_price = price
 
         data = {
             "price": round(price, 2),
@@ -75,28 +80,25 @@ async def market_data_generator():
             "reason": reason
         }
 
-        # Broadcast to all connected websockets
         for connection in manager.active_connections:
             await manager.send_personal_message(json.dumps(data), connection)
             
-        await asyncio.sleep(2) # New tick every 2 seconds
+        # Tick every 1 second instead of 2 for a live feel
+        await asyncio.sleep(1)
 
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(market_data_generator())
 
-# --- WebSocket Endpoint ---
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Keep connection open, we are pushing data to client
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-# --- Modern Frontend Dashboard ---
 @app.get("/", response_class=HTMLResponse)
 async def get_ui():
     return """
@@ -107,16 +109,25 @@ async def get_ui():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>AI Anomaly Detector</title>
         <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+            .flash-green { animation: flash-green 0.5s ease-out; }
+            .flash-red { animation: flash-red 0.5s ease-out; }
+            @keyframes flash-green { 0% { background-color: rgba(34, 197, 94, 0.3); } 100% { background-color: transparent; } }
+            @keyframes flash-red { 0% { background-color: rgba(239, 68, 68, 0.3); } 100% { background-color: transparent; } }
+        </style>
     </head>
     <body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
         <div class="w-full max-w-3xl">
             <div class="bg-gray-800 p-8 rounded-2xl shadow-xl border border-gray-700">
-                <h1 class="text-3xl font-bold text-center mb-2 text-indigo-400">Live AI Market Monitor</h1>
+                <div class="flex justify-between items-center mb-2">
+                    <h1 class="text-3xl font-bold text-indigo-400">Live AI Market Monitor</h1>
+                    <div id="status-badge" class="text-xs font-bold bg-red-900/50 text-red-400 px-3 py-1 rounded-full border border-red-800">🔴 Connecting...</div>
+                </div>
                 <p class="text-center text-gray-400 mb-8">Streaming simulated ticks. AI watches for anomalies.</p>
                 
-                <div class="bg-gray-900 p-6 rounded-xl mb-6 border border-gray-700 text-center">
+                <div id="price-card" class="bg-gray-900 p-6 rounded-xl mb-6 border border-gray-700 text-center transition-colors duration-300">
                     <p class="text-gray-500 text-sm uppercase tracking-wider mb-2">Current Price</p>
-                    <h2 id="price" class="text-5xl font-mono font-bold text-green-400">$0.00</h2>
+                    <h2 id="price" class="text-5xl font-mono font-bold text-green-400">$150.00</h2>
                     <p id="change" class="text-xl mt-2 text-gray-400">0.00%</p>
                 </div>
 
@@ -130,23 +141,47 @@ async def get_ui():
         </div>
 
         <script>
-            const ws = new WebSocket("ws://127.0.0.1:8000/ws");
             const priceEl = document.getElementById('price');
             const changeEl = document.getElementById('change');
             const alertsEl = document.getElementById('alerts');
+            const priceCard = document.getElementById('price-card');
+            const statusBadge = document.getElementById('status-badge');
+
+            // Dynamically determine WebSocket protocol (ws vs wss)
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const wsUrl = `${wsProtocol}${window.location.host}/ws`;
+            const ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                statusBadge.innerText = '🟢 Connected';
+                statusBadge.className = 'text-xs font-bold bg-green-900/50 text-green-400 px-3 py-1 rounded-full border border-green-800';
+            };
+
+            ws.onclose = () => {
+                statusBadge.innerText = '🔴 Disconnected';
+                statusBadge.className = 'text-xs font-bold bg-red-900/50 text-red-400 px-3 py-1 rounded-full border border-red-800';
+            };
 
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 
-                priceEl.innerText = '$' + data.price.toFixed(2);
+                const oldPrice = parseFloat(priceEl.innerText.replace('$', ''));
+                const newPrice = data.price;
+                
+                priceEl.innerText = '$' + newPrice.toFixed(2);
                 changeEl.innerText = (data.change_percent > 0 ? '+' : '') + data.change_percent.toFixed(2) + '%';
                 
-                if(data.change_percent > 0) {
+                // Flash effect
+                priceCard.classList.remove('flash-green', 'flash-red');
+                void priceCard.offsetWidth; // Trigger reflow to restart animation
+                if (newPrice > oldPrice) {
                     priceEl.classList.remove('text-red-400');
                     priceEl.classList.add('text-green-400');
-                } else {
+                    if (data.type !== 'ANOMALY DETECTED') priceCard.classList.add('flash-green');
+                } else if (newPrice < oldPrice) {
                     priceEl.classList.remove('text-green-400');
                     priceEl.classList.add('text-red-400');
+                    if (data.type !== 'ANOMALY DETECTED') priceCard.classList.add('flash-red');
                 }
 
                 if(data.type === 'ANOMALY DETECTED') {
