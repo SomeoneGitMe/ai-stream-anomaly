@@ -13,26 +13,7 @@ A real-time full-stack dashboard that streams simulated financial market data vi
 - Frontend: HTML, Tailwind CSS, Vanilla JS
 - Architecture: WebSockets, Real-Time Data Streaming, Event-Driven AI
 
-🚀 Getting Started
-1. Clone the repository
-  
-git clone https://github.com/SomeoneGitMe/ai-stream-anomaly.gitcd ai-stream-anomaly
-
-2. Install dependencies
-
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-3. Set up environment variables
-Create a .env file in the root directory and add your Groq API key:
-
-GROQ_API_KEY=your_groq_api_key_here
-
-4. Run the server
-
-uvicorn app:app --reload
-
-5. View the Dashboard
-
-Navigate to http://127.0.0.1:8000 in your browser. Watch the price ticker update. Within 30-60 seconds, you will see a red anomaly alert flash on the screen with the AI's real-time analysis.
+💻 Engineering Highlights
+- Real-Time WebSocket Streaming: Implemented a persistent WebSocket connection using asyncio to stream simulated market ticks to the frontend every second without requiring client-side polling.
+- Event-Driven AI Hooks: The backend monitors a volatility threshold. When breached, it triggers an async hook to call the Groq LLM API, generating a speculative market hypothesis and pushing it to the frontend alert feed instantly.
+- Frontend UI State Management: Managed complex DOM updates, including dynamic price flashing (green/red) based on tick direction, and auto-scrolling alert feeds for a Bloomberg-terminal-like user experience.
